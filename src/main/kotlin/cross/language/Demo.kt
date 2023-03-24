@@ -22,12 +22,14 @@ object Demo {
 
         var count = 0
         val debug = true
+
+        val distillerFaild: MutableList<String> = mutableListOf()
         for (i in bugs.indices step 2) {
-            if (debug) {
-//                if (i > 10) break
-                println("-------------------------------------------------------------------------------------")
-                println("${i / 2}: ${bugs[i].fullPath}")
-            }
+//            if (debug) {
+////                if (i > 10) break
+//                println("-------------------------------------------------------------------------------------")
+//                println("${i / 2}: ${bugs[i].fullPath}")
+//            }
             val left = File(bugs[i].fullPath)
             val right = File(bugs[i + 1].fullPath)
 
@@ -35,18 +37,24 @@ object Demo {
             /* distiller */
 
             val changes = distillerRun(left, right)
-            for (change in changes) {
-                println(change.changeType)
-                println(change.label)
-                println(change.toString())
-                println(change.changedEntity)
-                println(change.hashCode())
-                println(change.rootEntity)
-            }
+//            for (change in changes) {
+//                println(change.changeType)
+//                println(change.label)
+//                println(change.toString())
+//                println(change.changedEntity)
+//                println(change.hashCode())
+//                println(change.rootEntity)
+//            }
 
             if (changes.size > 0) {
                 count++
-                println(count)
+//                if (debug) println(count)
+            } else {
+                distillerFaild.add(bugs[i].path)
+                distillerFaild.add(bugs[i+1].path)
+                println(bugs[i].path)
+                println(bugs[i+1].path)
+                println()
             }
 
             /* hungarian algorithm */
@@ -81,7 +89,7 @@ object Demo {
 
         }
 //        println(bugs.size)
-
+        File("data/distillerFailed.txt").writeText(distillerFaild.joinToString("\n"))
     }
 
     fun distillerRun(left: File, right: File): List<SourceCodeChange> {
