@@ -18,10 +18,14 @@ object distillerTest {
     @JvmStatic
     fun main(args: Array<String>) {
         val root = "data/bugs/"
+//        val left =
+//            File(root + "04fb8c0_Bug_LUCENE-10118/from/lucene_core_src_test_org_apache_lucene_index_TestConcurrentMergeScheduler.java")
+//        val right =
+//            File(root + "04fb8c0_Bug_LUCENE-10118/to/lucene_core_src_test_org_apache_lucene_index_TestConcurrentMergeScheduler.java")
         val left =
-            File(root + "04fb8c0_Bug_LUCENE-10118/from/lucene_core_src_test_org_apache_lucene_index_TestConcurrentMergeScheduler.java")
+            File(root + "2183756_Bug_LUCENE-10413/from/lucene_analysis_morfologik_src_java_org_apache_lucene_analysis_uk_UkrainianMorfologikAnalyzer.java")
         val right =
-            File(root + "04fb8c0_Bug_LUCENE-10118/to/lucene_core_src_test_org_apache_lucene_index_TestConcurrentMergeScheduler.java")
+            File(root + "2183756_Bug_LUCENE-10413/to/lucene_analysis_morfologik_src_java_org_apache_lucene_analysis_uk_UkrainianMorfologikAnalyzer.java")
         val distiller = createFileDistiller(ChangeDistiller.Language.JAVA)!!
         try {
             distiller.extractClassifiedSourceCodeChanges(left, right)

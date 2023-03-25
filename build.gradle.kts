@@ -9,6 +9,9 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://maven.repository.redhat.com/ga/")
+    }
 }
 
 dependencies {
@@ -20,7 +23,9 @@ dependencies {
     testImplementation("junit:junit:4.11")
     testImplementation("org.hamcrest:hamcrest-all:1.3")
     implementation("com.google.inject.extensions:guice-assistedinject:3.0")
-    implementation("org.eclipse.jdt.core.compiler:ecj:4.2.2")
+//    implementation("org.eclipse.jdt.core.compiler:ecj:4.2.2")
+    implementation("org.eclipse.jdt.core.compiler:ecj:4.20.0.redhat-00002")
+
     implementation("org.apache.commons:commons-lang3:3.1")
 }
 

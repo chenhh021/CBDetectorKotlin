@@ -100,7 +100,7 @@ object Demo {
         } catch (e: Exception) {
             System.err.println("Warning: error while change distilling. " + e.message)
         }
-        return distiller.sourceCodeChanges
+        return distiller.sourceCodeChanges ?: emptyList()
     }
 
     fun findOther(fileInfo: FileInfo, files: List<FileInfo>): FileInfo? =
