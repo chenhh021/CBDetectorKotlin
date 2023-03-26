@@ -18,8 +18,8 @@ class HungarianAlgorithm(val input: List<Int>) {
     lateinit var slackx: IntArray //slackx[y] such a vertex, that
     lateinit var prev_ious: IntArray //array for memorizing alternating p
 
-    var final_cost: Int = 0
-    var final_assignment: MutableList<Int> = mutableListOf()
+    var finalCost: Int = 0
+    var finalAssignment: MutableList<Int> = mutableListOf()
 
     fun init_labels() {
         Arrays.fill(lx, 0)
@@ -202,13 +202,13 @@ class HungarianAlgorithm(val input: List<Int>) {
         augment() //steps 1-3
 
         // calculate result
-        final_assignment.clear()    // optimal matching
-        final_cost = 0      //weight of the optimal matching
+        finalAssignment.clear()    // optimal matching
+        finalCost = 0      //weight of the optimal matching
         for (x in 0 until n) {//forming answer there
-            final_assignment.add(x, xy[x])
-            final_cost += cost[x][xy[x]]
+            finalAssignment.add(x, xy[x])
+            finalCost += cost[x][xy[x]]
         }
-        final_cost *= -1
+        finalCost *= -1
     }
 
 }

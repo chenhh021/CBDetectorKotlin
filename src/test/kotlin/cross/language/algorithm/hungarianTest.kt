@@ -7,6 +7,6 @@ fun main(args: Array<String>) {
 	  2000 6000 3500
 	  2000 4000 2500*/
     val ob = HungarianAlgorithm(Arr)
-    println(ob.final_cost)
-    println(ob.final_assignment)
+    println(ob.finalCost)
+    println(ob.finalAssignment)
 }

@@ -1,4 +1,4 @@
-import cross.language.Demo
+import cross.language.run
 
 fun main(args: Array<String>) {
     println("Hello World!")
