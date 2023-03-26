@@ -7,8 +7,9 @@ import parsers.csharp.CSharpLexer
 import parsers.csharp.CSharpParser
 import parsers.csharp.CSharpParser.*
 import parsers.csharp.CSharpParserBaseListener
+import java.io.InputStream
 
-class FileParserCSharp(path: String) : FileParser(path) {
+class CSharpParser(src: InputStream) : Parser(src) {
     override val methods: MutableList<Method> = mutableListOf()
 
     init {

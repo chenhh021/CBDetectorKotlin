@@ -4,8 +4,10 @@ import ch.uzh.ifi.seal.changedistiller.JavaChangeDistillerModule
 import ch.uzh.ifi.seal.changedistiller.distilling.FileDistiller
 import ch.uzh.ifi.seal.changedistiller.model.entities.SourceCodeChange
 import com.google.inject.Guice
-import cross.language.parser.FileParserCSharp
-import cross.language.parser.FileParserJava
+import cross.language.algorithm.HungarianAlgorithm
+import cross.language.parser.CSharpParser
+import cross.language.parser.JavaParser
+import cross.language.algorithm.editDistance
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -20,76 +22,55 @@ object Demo {
 
         val bugs: List<FileInfo> = Json.decodeFromString(File("data/bugs.txt").readText())
 
-        var count = 0
+//        var count = 0
         val debug = true
 
-        val distillerFaild: MutableList<String> = mutableListOf()
         for (i in bugs.indices step 2) {
-//            if (debug) {
-////                if (i > 10) break
-//                println("-------------------------------------------------------------------------------------")
-//                println("${i / 2}: ${bugs[i].fullPath}")
-//            }
-            val left = File(bugs[i].fullPath)
-            val right = File(bugs[i + 1].fullPath)
-
-
-            /* distiller */
-
-            val changes = distillerRun(left, right)
-//            for (change in changes) {
-//                println(change.changeType)
-//                println(change.label)
-//                println(change.toString())
-//                println(change.changedEntity)
-//                println(change.hashCode())
-//                println(change.rootEntity)
-//            }
-
-            if (changes.size > 0) {
-                count++
-//                if (debug) println(count)
-            } else {
-                distillerFaild.add(bugs[i].path)
-                distillerFaild.add(bugs[i+1].path)
-                println(bugs[i].path)
-                println(bugs[i+1].path)
-                println()
+            if (debug) {
+                if (i > 100) break
+                println("-------------------------------------------------------------------------------------")
+                println("${i / 2}: ${bugs[i].fullPath}")
             }
 
-            /* hungarian algorithm */
-//
-//            val bug = bugs[i + 1]
-//
-////            val javaFileInfo = javaFiles.find {
-////                it.path == bug.tags[3]
-////            }
-//            val csharpFileInfo = csharpFiles.find {
-//                it.formattedFileName == bug.formattedFileName
-//            }
-//            if (csharpFileInfo != null) {
-//
-//                val fileParserJava = FileParserJava(bug.fullPath)
-//                val methodsJava = fileParserJava.methods.map { it.name }.distinct()
-//                val fileParserCSharp = FileParserCSharp(csharpFileInfo.fullPath)
-//                val methodsCSharp = fileParserCSharp.methods.map { it.name }.distinct()
-//
-//                if (debug) {
+            val from = bugs[i]
+            val to = bugs[i + 1]
+            val other = csharpFiles.find { it.formattedFileName == to.formattedFileName }   // TODO find best match
+
+            // hungarian algorithm
+            if (other != null) {
+
+                val methodsJava = JavaParser(File(from.fullPath).inputStream()).methods.map { it.name }
+                val methodsCSharp = CSharpParser(File(other.fullPath).inputStream()).methods.map { it.name }
+
+                if (debug) {
 //                    for (name in methodsJava) println(name)
-//                    println("##########")
-//                    println(csharpFileInfo.fullPath)
+//                    println("###########################################################################################")
 //                    for (name in methodsCSharp) println(name)
-//
-//                    val size = max(methodsJava.size, methodsCSharp.size)
-//
-//                }
-//
-//            }
+
+                    val size = max(methodsJava.size, methodsCSharp.size)
+                    val distanceList = List<Int>(size * size) {
+                        val x = it / size
+                        val y = it % size
+                        editDistance(methodsJava.getOrElse(x) { "" }, methodsCSharp.getOrElse(y) { "" })
+                    }
+
+//                    println(distanceList)
+
+                    val h = HungarianAlgorithm(distanceList)
+
+//                    println(h.input)
+//                    println(h.final_assignment)
+//                    println(h.final_cost)
+
+                    for (i in 0 until size) {
+                        println("${methodsJava.getOrElse(i){""}}\t\t\t${methodsCSharp.getOrElse(h.final_assignment[i]){""}}")
+                    }
+                }
+
+            }
 
 
         }
-//        println(bugs.size)
-        File("data/distillerFailed.txt").writeText(distillerFaild.joinToString("\n"))
     }
 
     fun distillerRun(left: File, right: File): List<SourceCodeChange> {

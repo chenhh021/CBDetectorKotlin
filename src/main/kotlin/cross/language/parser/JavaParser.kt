@@ -7,8 +7,9 @@ import parsers.java.JavaLexer
 import parsers.java.JavaParser
 import parsers.java.JavaParser.*
 import parsers.java.JavaParserBaseListener
+import java.io.InputStream
 
-class FileParserJava(path: String) : FileParser(path) {
+class JavaParser(src: InputStream) : Parser(src) {
     override val methods: MutableList<Method> = mutableListOf()
 
     init {

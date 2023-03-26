@@ -1,9 +1,10 @@
 package cross.language.algorithm
 
 import java.util.*
+import kotlin.math.sqrt
 
 
-class HungarianAlgorithm {
+class HungarianAlgorithm(val input: List<Int>) {
     var n = 0
     lateinit var cost: Array<IntArray> //cost matrix
     var max_match = 0 //n workers and n jobs
@@ -177,9 +178,9 @@ class HungarianAlgorithm {
         }
     } //end of augment() function
 
-    fun solve(Arr: IntArray, N: Int): HungarianAlgorithm {
+    init {
         // init collections
-        n = N
+        n = sqrt(input.size.toDouble()).toInt()
         cost = Array(n) { IntArray(n) }
         lx = IntArray(n)
         ly = IntArray(n)
@@ -189,7 +190,7 @@ class HungarianAlgorithm {
         slackx = IntArray(n)
         prev_ious = IntArray(n)
         for (i in 0 until n) for (j in 0 until n) cost[i][j] =
-            -1 * Arr[i * n + j]
+            -1 * input[i * n + j]
 
         // hungarian algorithm
         max_match = 0 //number of vertices in current matching
@@ -208,8 +209,6 @@ class HungarianAlgorithm {
             final_cost += cost[x][xy[x]]
         }
         final_cost *= -1
-
-        return this
     }
 
 }
