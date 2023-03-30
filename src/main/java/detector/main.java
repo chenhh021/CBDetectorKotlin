@@ -19,7 +19,7 @@ public class main {
         if(out_dir == null){
             String relativelyPath=System.getProperty( "user.dir" );
             StringBuilder builder= new StringBuilder(relativelyPath);
-            builder.append("\\out\\");
+            builder.append("\\output\\");
             out_dir = builder.toString();
         }
 
