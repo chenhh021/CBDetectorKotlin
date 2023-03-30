@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     kotlin("jvm") version "1.8.0"
     kotlin("plugin.serialization") version "1.8.10"
@@ -27,6 +29,13 @@ dependencies {
     implementation("org.eclipse.jdt.core.compiler:ecj:4.20.0.redhat-00002")
 
     implementation("org.apache.commons:commons-lang3:3.1")
+    implementation(kotlin("stdlib-jdk8"))
+
+    implementation("org.apache.lucene:lucene-core:8.11.2")
+}
+
+tasks.withType(JavaCompile::class.java){
+    options.encoding = "UTF-8"
 }
 
 tasks.test {
@@ -41,3 +50,11 @@ application {
     mainClass.set("MainKt")
 }
 
+val compileKotlin: KotlinCompile by tasks
+compileKotlin.kotlinOptions {
+    jvmTarget = "1.8"
+}
+val compileTestKotlin: KotlinCompile by tasks
+compileTestKotlin.kotlinOptions {
+    jvmTarget = "1.8"
+}
