@@ -50,6 +50,10 @@ public class changeHandler implements Serializable {
         List<StructureEntityVersion> entities = new ArrayList<StructureEntityVersion>();
         FileDistiller distiller = ChangeDistiller.createFileDistiller(ChangeDistiller.Language.JAVA);
         for(int i = 0; i < Objects.requireNonNull(oriFileNames).length && i < Objects.requireNonNull(desFileNames).length; ++i) {
+            String[] postfix = oriFileNames[i].getName().split("\\.");
+            if(!postfix[postfix.length-1].equals("java")){
+                continue;
+            }
             //抽取文件差异
             try {
                 distiller.extractClassifiedSourceCodeChanges(oriFileNames[i], desFileNames[i]);

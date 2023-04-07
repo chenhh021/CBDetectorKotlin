@@ -3,19 +3,25 @@ package detector.changes;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class projectChangeHandler {
-    public static List<changeHandler> getProjectChanges(String project){
+    public static List<String> getBugNames(String project){
         String basedir = changeHandler.getDataDir();
-        StringBuilder builder = new StringBuilder(basedir);
-        builder.append(project);
-        File projectDir = new File(builder.toString());
-        List<changeHandler> bugChanges = new ArrayList<>();
-        for(File bugDir: projectDir.listFiles()){
+        File projectDir = new File(basedir + project);
+        List<String> bugNames = new ArrayList<>();
+        for(File bugDir: Objects.requireNonNull(projectDir.listFiles())){
             if(bugDir.isFile()){
                 continue;
             }
-            String name = bugDir.getName();
+            bugNames.add(bugDir.getName());
+        }
+        return bugNames;
+    }
+    public static List<changeHandler> getProjectChanges(String project){
+        List<String> bugNames = getBugNames(project);
+        List<changeHandler> bugChanges = new ArrayList<>();
+        for(String name: bugNames){
             bugChanges.add(new changeHandler(project, name));
         }
         return bugChanges;
