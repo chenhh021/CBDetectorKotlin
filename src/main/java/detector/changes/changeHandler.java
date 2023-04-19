@@ -2,6 +2,7 @@ package detector.changes;
 
 import ch.uzh.ifi.seal.changedistiller.ChangeDistiller;
 import ch.uzh.ifi.seal.changedistiller.distilling.FileDistiller;
+import ch.uzh.ifi.seal.changedistiller.model.classifiers.ChangeType;
 import ch.uzh.ifi.seal.changedistiller.model.entities.SourceCodeChange;
 import ch.uzh.ifi.seal.changedistiller.model.entities.StructureEntityVersion;
 
@@ -15,7 +16,7 @@ public class changeHandler implements Serializable {
     public String project;
     public String bug;
     public HashMap<String,List<SourceCodeChange>> changes;
-    public HashMap<String, List<String>> fileMethods;
+    public HashMap<String, Set<String>> fileMethods;
 
 
     public changeHandler(String project, String bug){
@@ -62,47 +63,67 @@ public class changeHandler implements Serializable {
                 continue;
             }
 
-            //添加文件名
+            //添加文件名(包括方法名), 这里不改小写
             String fileName = oriFileNames[i].getName();
             String[] pathInProject = fileName.split("_");
             fileName = pathInProject[pathInProject.length-1];
             fileName = fileName.substring(0,fileName.length()-5);
-            fileName = fileName.toLowerCase();
-            fileMethods.put(fileName, new ArrayList<>());
+//            fileName = fileName.toLowerCase();
+            fileMethods.put(fileName, new HashSet<>());
 
             List<SourceCodeChange> allChanges = distiller.getSourceCodeChanges();
             for(SourceCodeChange change:allChanges){
                 StructureEntityVersion rootEntity = change.getRootEntity();
 //                entities.add(change.getRootEntity());
-                String methodName = rootEntity.getUniqueName();
+                String rootName = rootEntity.getUniqueName();
                 //get all directory alone path to file
-                String[] fullPath = methodName.split("\\.");
+                String[] fullPath = rootName.split("\\.");
+                List<String> methodsList = new ArrayList<>();
 
                 //ignore all tests
 //                if(utils.stringUtils.hasTest(fullPath)){
 //                    continue;
 //                }
 
+                String methodName = "";
                 int pathSize = fullPath.length;
                 switch (rootEntity.getType().name()){
                     case "METHOD":
-                        methodName = fullPath[pathSize-2]+"."+fullPath[pathSize-1];
+                        rootName = fullPath[pathSize-2]+"."+fullPath[pathSize-1];
+                        methodName = fullPath[pathSize-1];
                         break;
                     case "CLASS":
-                        methodName = fullPath[pathSize-1];
+                        rootName = fullPath[pathSize-1];
+                        changeMethod(change);
+                        methodName = changeMethod(change);
                         break;
                     default:
                         System.out.println(rootEntity.getType().name());
                 }
 //                methodName = methodName.substring(st+1);
 
-                if(!changes.containsKey(methodName)){
-                    changes.put(methodName, new ArrayList<>());
+                // 第一个该方法下的更改
+                if(!changes.containsKey(rootName)){
+                    changes.put(rootName, new ArrayList<>());
+                }
+                if(!methodName.isEmpty()) {
                     fileMethods.get(fileName).add(methodName);
                 }
-                changes.get(methodName).add(change);
+                changes.get(rootName).add(change);
             }
         }
+    }
+
+    //如果是增加一整个方法，从change抽出新增的方法名；可能还要处理其他情况
+    private String changeMethod(SourceCodeChange change){
+        String name = "";
+        if(change.getChangeType() == ChangeType.ADDITIONAL_FUNCTIONALITY){
+            name = change.getChangedEntity().getUniqueName();
+            int idx = name.lastIndexOf('(');
+            int pre_method = name.lastIndexOf(".", idx);
+            name = name.substring(pre_method+1);
+        }
+        return name;
     }
 
     public static String getDataDir(){
@@ -148,7 +169,7 @@ public class changeHandler implements Serializable {
         File file = new File(relativelyPath);
         System.out.println(relativelyPath);
         System.out.println(file.listFiles());
-        changeHandler test = new changeHandler("LUCENE", "04fb8c0_Bug_LUCENE-10118");
+        changeHandler test = new changeHandler("LUCENE", "040adbb_Bug_LUCENE-5537");
         System.out.println(test);
     }
 }

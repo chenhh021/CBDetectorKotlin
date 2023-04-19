@@ -15,6 +15,7 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 
 
+import static detector.changes.calledAPIExtractor.*;
 import static detector.changes.projectChangeHandler.getBugNames;
 import static detector.changes.projectChangeHandler.getProjectChanges;
 
@@ -29,8 +30,10 @@ public class main {
         builder.append("\\output\\");
         //输出路径
         String out_dir = builder.toString();
-        //源项目：出补丁的java项目
+        //原项目：出补丁的java项目
         String ori = "LUCENE";
+        //原项目的源代码目录名称
+        String oriSrc = "lucene-9.3.0-src";
         //目标项目：出源代码的c#项目
         String des = "Lucene.Net_4_8_0";
 
@@ -47,6 +50,7 @@ public class main {
         HashMap<String, HashSet<String>> bug_repeat_files = new HashMap<>(); //临时统计：在c#项目中能找到的补丁相关重复文件
         int candidates_num = 0; //比较的java补丁数量
         int target_num = 0; //有c#重复文件的补丁数量
+        int abnormal_num = 0; //临时，对应测试文件，抽出的函数调用数量为0的补丁数量
         OutputStreamWriter ows; //输出流
         //当前时间戳
         long timestamp = System.currentTimeMillis();
@@ -79,30 +83,15 @@ public class main {
             changeHandler patch = new changeHandler(ori, bugName);
 
             //读取变更文件
-            files.addAll(patch.fileMethods.keySet());
+            Set<String> bugFiles = patch.fileMethods.keySet();
+            //加入到总集里，类似缓存，加快后续查询
+            files.addAll(bugFiles);
             logger.info("changes distilling complete");
 
-            //寻找所有变更文件的映射
-            logger.info("search mapped files");
-            for (String file : files) {
-                if(!mapped_files.containsKey(file)) {
-                    mapped_files.put(file, mapper.singleFileMapping(file));
-                }
-            }
-
-            //记录当前补丁变更文件的映射
-            HashSet<String> desFiles = new HashSet<>();
-            for(String file:patch.fileMethods.keySet()){
-                desFiles.addAll(mapped_files.get(file));
-//                desFiles.addAll(mapper.singleFileMapping(file));
-            }
-            bug_repeat_files.put(patch.bug, desFiles);
-            logger.info("search mapped files complete");
-
-            //划分非测试代码和测试代码
-            List<String> srcFiles = new ArrayList<>();
-            List<String> testFiles = new ArrayList<>();
-            for(String fileName:desFiles) {
+            //划分java补丁中的非测试文件和测试文件
+            List<String> srcFiles = new ArrayList<>();  //java非测试文件
+            List<String> testFiles = new ArrayList<>(); //java测试文件
+            for(String fileName:bugFiles) {
                 String[] fullPath = fileName.split("\\.");
 
                 //根据是否为test进行划分
@@ -113,17 +102,67 @@ public class main {
                 }
             }
 
-            //临时输出
-            if(desFiles.isEmpty() || srcFiles.isEmpty() || testFiles.isEmpty() || desFiles.size() > 9){
+
+            //对补丁进行粗筛, 去掉文件太多，以及只有测试文件或没有测试文件的情况
+            if(srcFiles.isEmpty() || testFiles.isEmpty() || bugFiles.size() > 9){
+                continue;
+            }
+
+            //寻找所有变更文件的映射(处理前将所有文件名变为小写)
+            logger.info("search mapped files");
+            for (String file : bugFiles) {
+                file = file.toLowerCase();
+                if(!mapped_files.containsKey(file)) {
+                    mapped_files.put(file, mapper.singleFileMapping(file));
+                }
+            }
+
+            //记录当前补丁变更文件的映射
+            HashSet<String> desFiles = new HashSet<>();
+            for(String file:patch.fileMethods.keySet()){
+                file = file.toLowerCase();
+                desFiles.addAll(mapped_files.get(file));
+//                desFiles.addAll(mapper.singleFileMapping(file));
+            }
+            bug_repeat_files.put(patch.bug, desFiles);
+            logger.info("search mapped files complete");
+
+            //c#项目没有找到对应文件
+            if(desFiles.isEmpty()){
                 continue;
             }
 
             ++target_num;
 
+            //抽取test中的函数调用
+            loadFiles(ori, bugName);
+            HashMap<String, Set<String>> test_Apis = getInvocatedMethods(patch);
+            boolean flag = false;
+            for(String name:test_Apis.keySet()){
+                if(test_Apis.get(name).isEmpty()){
+                    flag = true;
+                }
+            }
+
+            if(flag){
+                ++abnormal_num;
+            }
+
             ows.write(bugName);
-            ows.write("\n");
+            ows.write("\n\n");
+            ows.write("mapped files:\n");
             for(String mappedFile:desFiles){
                 ows.write(mappedFile);
+                ows.write("\n");
+            }
+            ows.write("\ntest-invocated methods underfile:\n");
+            for(String testFile:test_Apis.keySet()){
+                ows.write(testFile);
+                ows.write(":\n");
+                for(String api:test_Apis.get(testFile)){
+                    ows.write(api);
+                    ows.write(";");
+                }
                 ows.write("\n");
             }
             ows.write("\n");
@@ -131,6 +170,7 @@ public class main {
         }
 
         ows.write("Found targets:"+target_num+" from "+candidates_num+" bugs\n");
+        ows.write(abnormal_num+" fails to extract invocated methods");
         ows.close();
 
         System.out.println("Found targets:"+target_num+" from "+candidates_num+" bugs\n");
