@@ -1,7 +1,10 @@
 package detector.changes;
 
+import detector.main;
 import detector.utils.stringUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.jdt.core.dom.*;
 
 import java.io.File;
@@ -17,7 +20,10 @@ public class methodExtractor {
     static String data_dir;
     static int baseLenth;
 
+    static Logger logger = LogManager.getLogger(methodExtractor.class.getName());
+
     public static Map<String, Set<String>> extractMethods(String src_dir){
+        logger.info("Start to extract all methods from: "+src_dir);
         //初始化用户目录
         if(data_dir == null){
             String relativelyPath=System.getProperty( "user.dir" );
@@ -49,21 +55,39 @@ public class methodExtractor {
             for(Path result:results){
                 String fullPath = result.toString();
                 String relativePath = fullPath.substring(baseLenth);
+                String fileName = result.getFileName().toString();
+                fileName = fileName.substring(0,fileName.length()-5);
                 if(stringUtils.hasTest(relativePath.split("\\\\"))){
                     continue;
                 }
 
                 Set<String> methodNames = getMethodsFromSingleFile(fullPath);
+                if(methodNames.isEmpty()){
+                    continue;
+                }
+                String contents = FileUtils.readFileToString(new File(fullPath));
+                final CompilationUnit astRoot = parseStringToCompilationUnit(contents);
+                String pkg = astRoot.getPackage().getName().toString();
+
                 for(String method:methodNames){
                     if(!methods.containsKey(method)){
                         methods.put(method, new HashSet<>());
                     }
-                    methods.get(method).add(relativePath);
+                    methods.get(method).add(pkg+"."+fileName);
                 }
             }
 
         } catch (IOException e) {
             e.printStackTrace();
+        }
+
+        Map<String, Set<String>> finalMethods;
+        //滤掉很多方法中都有的函数
+        Set<String> methodNames = new HashSet<>(methods.keySet());
+        for(String name:methodNames){
+            if(methods.get(name).size() > 9){
+                methods.remove(name);
+            }
         }
 
         return methods;
@@ -89,7 +113,7 @@ public class methodExtractor {
             methods.add(methodDec.getName().toString());
         }
 
-        return  methods;
+        return methods;
     }
 
     private static CompilationUnit parseStringToCompilationUnit(String unit) {

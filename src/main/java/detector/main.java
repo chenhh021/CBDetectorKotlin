@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat;
 
 
 import static detector.changes.calledAPIExtractor.*;
+import static detector.changes.methodExtractor.extractMethods;
 import static detector.changes.projectChangeHandler.getBugNames;
 import static detector.changes.projectChangeHandler.getProjectChanges;
 
@@ -51,11 +52,14 @@ public class main {
         int candidates_num = 0; //比较的java补丁数量
         int target_num = 0; //有c#重复文件的补丁数量
         int abnormal_num = 0; //临时，对应测试文件，抽出的函数调用数量为0的补丁数量
+        int after_filtering_num = 0; //临时，筛选后仍能抽出方法调用的补丁数量
         OutputStreamWriter ows; //输出流
         //当前时间戳
         long timestamp = System.currentTimeMillis();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
         String formattedDate = sdf.format(new Date(timestamp));
+        //java项目的方法列表
+        Map<String, Set<String>> javaMethodList = extractMethods(oriSrc);
 
 
         //输出文件命名,用时间戳保证唯一性
@@ -88,7 +92,7 @@ public class main {
             files.addAll(bugFiles);
             logger.info("changes distilling complete");
 
-            //划分java补丁中的非测试文件和测试文件
+            //划分java补丁（更改前的，变更前就有的）中的非测试文件和测试文件
             List<String> srcFiles = new ArrayList<>();  //java非测试文件
             List<String> testFiles = new ArrayList<>(); //java测试文件
             for(String fileName:bugFiles) {
@@ -99,6 +103,13 @@ public class main {
                     testFiles.add(fileName);
                 }else{
                     srcFiles.add(fileName);
+                }
+            }
+
+            for(String fileName:patch.addedFiles){
+                String[] fullPath = fileName.split("_");
+                if (detector.utils.stringUtils.hasTest(fullPath)) {
+                    testFiles.add(fileName); //注意这里文件名的格式不一样，例：lucene_core_src_test_org_apache_lucene_store_TestLockFactory
                 }
             }
 
@@ -135,17 +146,38 @@ public class main {
             ++target_num;
 
             //抽取test中的函数调用
-            loadFiles(ori, bugName);
-            HashMap<String, Set<String>> test_Apis = getInvocatedMethods(patch);
-            boolean flag = false;
+            loadFiles(ori, bugName, javaMethodList);
+            HashMap<String, Set<String>> test_Apis = getInvocatedMethods(patch); //所有函数调用
+            HashMap<String, Set<String>> test_Apis_inner = new HashMap<>(); //调用的内部方法（如Lucene的src文件夹下的所有方法）
+            boolean flag = false, flag2 = false;
             for(String name:test_Apis.keySet()){
-                if(test_Apis.get(name).isEmpty()){
+                Set<String> invocatedMethods = test_Apis.get(name);
+                if(invocatedMethods.isEmpty()){
                     flag = true;
+                }
+
+                //根据是否包含内部方法筛选
+                Set<String> filteredMethods = new HashSet<>();
+                for(String invocatedMethod:invocatedMethods){
+                    if(javaMethodList.containsKey(invocatedMethod)){
+                        Set<String> innerFiles = javaMethodList.get(invocatedMethod);
+                        for(String file:innerFiles)
+                        filteredMethods.add(file+":"+invocatedMethod);
+                    }
+                }
+                test_Apis_inner.put(name, filteredMethods);
+
+                if(!filteredMethods.isEmpty()){
+                    flag2 = true;
                 }
             }
 
             if(flag){
                 ++abnormal_num;
+            }
+
+            if(flag2){
+                ++after_filtering_num;
             }
 
             ows.write(bugName);
@@ -155,13 +187,14 @@ public class main {
                 ows.write(mappedFile);
                 ows.write("\n");
             }
-            ows.write("\ntest-invocated methods underfile:\n");
+            ows.write("\ntest-invocated methods under file:\n");
             for(String testFile:test_Apis.keySet()){
                 ows.write(testFile);
                 ows.write(":\n");
-                for(String api:test_Apis.get(testFile)){
+//                for(String api:test_Apis_inner.get(testFile)){ //筛选内部方法后
+                for(String api:test_Apis.get(testFile)){  //未筛选
                     ows.write(api);
-                    ows.write(";");
+                    ows.write("\n");
                 }
                 ows.write("\n");
             }
@@ -170,7 +203,8 @@ public class main {
         }
 
         ows.write("Found targets:"+target_num+" from "+candidates_num+" bugs\n");
-        ows.write(abnormal_num+" fails to extract invocated methods");
+        ows.write(abnormal_num+" fails to extract invocated methods\n");
+        ows.write(after_filtering_num+" has invocated inner methods\n");
         ows.close();
 
         System.out.println("Found targets:"+target_num+" from "+candidates_num+" bugs\n");

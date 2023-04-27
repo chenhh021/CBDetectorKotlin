@@ -18,12 +18,17 @@ public class changeHandler implements Serializable {
     public HashMap<String,List<SourceCodeChange>> changes;
     public HashMap<String, Set<String>> fileMethods;
 
+    public Set<String> addedFiles;
+    public Set<String> removedFiles;
+
 
     public changeHandler(String project, String bug){
         this.project = project;
         this.bug = bug;
         changes = new HashMap<>();
         fileMethods = new HashMap<>();
+        addedFiles = new HashSet<>();
+        removedFiles = new HashSet<>();
         if(dataDir == null){
             String relativelyPath=System.getProperty( "user.dir" );
             StringBuilder builder= new StringBuilder(relativelyPath);
@@ -41,23 +46,52 @@ public class changeHandler implements Serializable {
         builder.append("from\\");
         File oriDir = new File(builder.toString());
         File[] oriFileNames = oriDir.listFiles();
+        Set<String> oriFiles = new HashSet<>();
+        for(int i=0; i < oriFileNames.length; ++i){
+            oriFiles.add(oriFileNames[i].getName());
+        }
 
         builder.delete(baseDir, builder.length());
         builder.append("to\\");
         File desDir = new File(builder.toString());
         File[] desFileNames = desDir.listFiles();
+        Set<String> desFiles = new HashSet<>(); //更改后的文件名
+        for(int i = 0; i < desFileNames.length; ++i){
+            desFiles.add(desFileNames[i].getName());
+        }
 
+        //遍历寻找新增文件
+        for(String name:desFiles){
+            if(!oriFiles.contains(name)){
+                String[] postfix = name.split("\\.");
+                if(!postfix[postfix.length-1].equals("java")){
+                    continue;
+                }
+                addedFiles.add(name);
+            }
+        }
+
+
+        //抽取变化
 //        System.out.println(oriFileNames[0]);
         List<StructureEntityVersion> entities = new ArrayList<StructureEntityVersion>();
         FileDistiller distiller = ChangeDistiller.createFileDistiller(ChangeDistiller.Language.JAVA);
-        for(int i = 0; i < Objects.requireNonNull(oriFileNames).length && i < Objects.requireNonNull(desFileNames).length; ++i) {
+        for(int i = 0; i < Objects.requireNonNull(oriFileNames).length; ++i) {
             String[] postfix = oriFileNames[i].getName().split("\\.");
             if(!postfix[postfix.length-1].equals("java")){
                 continue;
             }
+
+            String oriName = oriFileNames[i].getName();
+            //一边没有文件就不比较
+            if(!desFiles.contains(oriName)){
+                removedFiles.add(oriName);
+                continue;
+            }
+            File desFile = new File(builder.toString()+oriName);
             //抽取文件差异
             try {
-                distiller.extractClassifiedSourceCodeChanges(oriFileNames[i], desFileNames[i]);
+                distiller.extractClassifiedSourceCodeChanges(oriFileNames[i], desFile);
             } catch (Exception e) {
                 System.err.println("Warning: error while change distilling. " + e.getMessage());
                 continue;

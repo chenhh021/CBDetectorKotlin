@@ -17,6 +17,8 @@ import org.eclipse.jface.text.Document;
 import org.eclipse.text.edits.MalformedTreeException;
 import org.eclipse.text.edits.TextEdit;
 
+import static detector.changes.methodExtractor.extractMethods;
+
 // 目标：输出更改的test中所有调用的api
 public class calledAPIExtractor {
     static private String dataDir_;
@@ -25,8 +27,9 @@ public class calledAPIExtractor {
 
     static public Map<String, File> oriFiles_;
     static public Map<String, File> desFiles_;
+    static public Map<String, Set<String>> javaMethodList_;
 
-    public static void loadFiles(String project, String bug){
+    public static void loadFiles(String project, String bug, Map<String, Set<String>> javaMethodList){
         project_ = project;
         bug_ = bug;
         if(oriFiles_ != null) {
@@ -40,6 +43,8 @@ public class calledAPIExtractor {
         }else{
             desFiles_ = new HashMap<>();
         }
+
+        javaMethodList_ = javaMethodList;
 
         if(dataDir_ == null){
             String relativelyPath=System.getProperty( "user.dir" );
@@ -103,7 +108,53 @@ public class calledAPIExtractor {
                 }
             }
         });
+
+        for(String fileFullName: patch.addedFiles){
+            String fullPath[] = fileFullName.split("_");
+            if(stringUtils.hasTest(fullPath)){
+                StringBuilder builder = new StringBuilder(dataDir_);
+                builder.append(project_);
+                builder.append("\\");
+                builder.append(bug_);
+                builder.append("\\to\\");
+                builder.append(fileFullName);
+                File file = new File(builder.toString());
+                try {
+                Set<String> methods = getAllMethods(file);
+                String fileName = fullPath[fullPath.length-1];
+                fileName = fileName.substring(0, fileName.length()-5);
+
+                fileInvocatedMethods.put(fileName, getInvocatedMethodsOfSingleFile(file, methods));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
         return fileInvocatedMethods;
+    }
+
+    //获取某个文件的所有方法, 目前并不完善，默认不输入参数(输出的方法均为method(), 而不会是method(int, String)之类的)
+    private static Set<String> getAllMethods(File file) throws IOException {
+        String contents = FileUtils.readFileToString(file);
+
+        final CompilationUnit astRoot = parseStringToCompilationUnit(contents);
+
+        if(astRoot.types().isEmpty()){
+            return new HashSet<>();
+        }
+
+        TypeDeclaration typeDecl = (TypeDeclaration) astRoot.types().get(0);
+
+        //Get all methods from the class
+        MethodDeclaration[] methodDeclarations = typeDecl.getMethods();
+
+        Set<String> methods = new HashSet<>();
+
+        for(MethodDeclaration methodDec:methodDeclarations){
+            methods.add(methodDec.getName().toString()+"()");
+        }
+
+        return methods;
     }
 
     //从单个文件抽取调用的API， 输入为文件和对应的方法列表
@@ -112,6 +163,12 @@ public class calledAPIExtractor {
 
         final CompilationUnit astRoot = parseStringToCompilationUnit(contents);
         TypeDeclaration typeDecl = (TypeDeclaration) astRoot.types().get(0);
+        List<ImportDeclaration> imports = astRoot.imports();
+        List<String> importsNames = new ArrayList<>();
+        for(ImportDeclaration im:imports){
+            importsNames.add(im.getName().toString());
+        }
+        importsNames.add(astRoot.getPackage().getName().toString());
 
         //Get all methods from the class
         MethodDeclaration[] methodDeclarations = typeDecl.getMethods();
@@ -123,7 +180,7 @@ public class calledAPIExtractor {
 
         //每个方法只扫描一边，防止出现引用循环时产生死循环
         Set<String> seen = new HashSet<>();
-        Set<String> results = new HashSet<>();
+        Set<String> raw_results = new HashSet<>();
 
         for(String method:methods){
             //处理方法名，处理前这里的方法名是file.method格式
@@ -134,14 +191,14 @@ public class calledAPIExtractor {
             }
 
             MethodDeclaration mDeclaration = methodDeclarations[methodDic.get(method)];
-            results.addAll(getInvocatedMethodsOfSingleMethod(mDeclaration));
+            raw_results.addAll(getInvocatedMethodsOfSingleMethod(mDeclaration));
 
             seen.add(method);
         }
 
         Queue<String> invocatedInnerMethods = new ArrayDeque<>();
 
-        for(String result:results){
+        for(String result:raw_results){
             if(methodDic.containsKey(result) && !seen.contains(result)){
                 invocatedInnerMethods.add(result);
             }
@@ -151,7 +208,7 @@ public class calledAPIExtractor {
             String method = invocatedInnerMethods.remove();
             MethodDeclaration mDeclaration = methodDeclarations[methodDic.get(method)];
             Set<String> newMethods = getInvocatedMethodsOfSingleMethod(mDeclaration);
-            results.addAll(newMethods);
+            raw_results.addAll(newMethods);
             seen.add(method);
 
             for(String newMethod:newMethods){
@@ -161,9 +218,37 @@ public class calledAPIExtractor {
             }
         }
 
+        Set<String> results = new HashSet<>();
+        for(String raw:raw_results){
+            if(!javaMethodList_.containsKey(raw)){
+                continue;
+            }
+            for(String candidate:javaMethodList_.get(raw)){
+                if(methodMatch(importsNames, candidate)){
+                    results.add(candidate+"."+raw);
+                }
+            }
+        }
+
         return results;
     }
 
+    private static boolean methodMatch(List<String> imports, String candidate){
+        String[] candiSplit = candidate.split("\\.");
+        for(String im:imports){
+            String[] imSplit = im.split("\\.");
+            int i;
+            for(i = 0; i < candiSplit.length && i < imSplit.length; ++i){
+                if(!candiSplit[i].equals(imSplit[i])){
+                    break;
+                }
+            }
+            if(i == imSplit.length||imSplit[i].equals("*")){
+                return true;
+            }
+        }
+        return false;
+    }
     private static String extractName(String name){
 //        System.out.println("Extract Name:");
 //        System.out.println(name);
@@ -235,10 +320,12 @@ public class calledAPIExtractor {
 
         String project_name = "LUCENE";
 //        String bug_name = "0082b50_Bug_LUCENE-5473";
-        String bug_name = "03cc612_Bug_LUCENE-2822";
+        String bug_name = "0045e0f_Bug_LUCENE-2937";
 
         changeHandler test = new changeHandler(project_name, bug_name);
-        loadFiles(project_name, bug_name);
+        Map<String, Set<String>> javaMethodList = extractMethods("lucene-9.3.0-src");
+
+        loadFiles(project_name, bug_name, javaMethodList);
         HashMap<String, Set<String>> test_Apis = getInvocatedMethods(test);
 
 //        String contents = FileUtils.readFileToString(new File(filePath));
